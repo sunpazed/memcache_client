@@ -29,11 +29,13 @@ class ValidationException(ClientException):
         super(ValidationException, self).__init__(msg, item)
 
 class Client(object):
-
     '''Simple memcache client that supports timeout and a few transparent retry scenarios'''
 
     def __init__(self, host, port, timeout=None, connect_timeout=None):
-        """If connect_timeout is None, timeout will be used instead (for connect and everything else)."""
+        '''
+        If connect_timeout is None, timeout will be used instead
+        (for connect and everything else).
+        '''
         self._addr = (host, port)
         self._timeout = timeout
         self._connect_timeout = connect_timeout
@@ -156,18 +158,14 @@ class Client(object):
             self._socket.close()
             self._socket = None
 
-    def delete(self, key, time=0):
-        # req  - delete <key> [<time>] [noreply]\r\n
+    def delete(self, key):
+        # req  - delete <key> [noreply]\r\n
         # resp - DELETED\r\n
         #        or
-        #        NOT_STORED\r\n
+        #        NOT_FOUND\r\n
         key = self._validate_key(key)
-        if not isinstance(time, int):
-            raise ValidationException('time not int', time)
-        elif time < 0:
-            raise ValidationException('time negative', time)
 
-        command = 'delete %s %d\r\n' % (key, time)
+        command = 'delete %s\r\n' % key
         resp = self._send_command(command)
         if resp != 'DELETED\r\n' and resp != 'NOT_FOUND\r\n':
             raise ClientException('delete failed', resp)
@@ -250,8 +248,10 @@ class Client(object):
         if resp != 'STORED\r\n':
             raise ClientException('set failed', resp)
 
-    # additional_args passed verbatim to the stats cmd
     def stats(self, additional_args=None):
+        '''
+        additional_args passed verbatim to the stats cmd
+        '''
         # req  - stats [additional args]\r\n
         # resp - STAT <name> <value>\r\n (one per result)
         #        END\r\n

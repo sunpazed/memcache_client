@@ -35,8 +35,6 @@ try:
 except ImportError:
     import unittest
 
-# buildbot's sysctl specifies ephemeral ports as 11212 - 65535
-# and memcached uses 11211 so we use 11000 - 11210
 low_port = 11000
 high_port = 11210
 # spin up new memcached instance to test against
