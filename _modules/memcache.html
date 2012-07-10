@@ -1,0 +1,366 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>memcache &mdash; memcache_client 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="memcache_client 1.0 documentation" href="../index.html" />
+    <link rel="up" title="Module code" href="index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../index.html">memcache_client 1.0 documentation</a> &raquo;</li>
+          <li><a href="index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for memcache</h1><div class="highlight"><pre>
+<span class="c"># Copyright 2012 Mixpanel, Inc.</span>
+<span class="c">#</span>
+<span class="c"># Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);</span>
+<span class="c"># you may not use this file except in compliance with the License.</span>
+<span class="c"># You may obtain a copy of the License at</span>
+<span class="c">#</span>
+<span class="c">#     http://www.apache.org/licenses/LICENSE-2.0</span>
+<span class="c">#</span>
+<span class="c"># Unless required by applicable law or agreed to in writing, software</span>
+<span class="c"># distributed under the License is distributed on an &quot;AS IS&quot; BASIS,</span>
+<span class="c"># WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.</span>
+<span class="c"># See the License for the specific language governing permissions and</span>
+<span class="c"># limitations under the License.</span>
+
+<span class="kn">import</span> <span class="nn">errno</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">socket</span>
+
+<div class="viewcode-block" id="ClientException"><a class="viewcode-back" href="../index.html#memcache.ClientException">[docs]</a><span class="k">class</span> <span class="nc">ClientException</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+
+<div class="viewcode-block" id="ClientException.__init__"><a class="viewcode-back" href="../index.html#memcache.ClientException.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">,</span> <span class="n">item</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">item</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s">&#39;</span><span class="si">%s</span><span class="s">: </span><span class="si">%r</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">item</span><span class="p">)</span> <span class="c"># use repr() to better see special chars</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">ClientException</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+</div></div>
+<div class="viewcode-block" id="ValidationException"><a class="viewcode-back" href="../index.html#memcache.ValidationException">[docs]</a><span class="k">class</span> <span class="nc">ValidationException</span><span class="p">(</span><span class="n">ClientException</span><span class="p">):</span>
+
+<div class="viewcode-block" id="ValidationException.__init__"><a class="viewcode-back" href="../index.html#memcache.ValidationException.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">ValidationException</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">item</span><span class="p">)</span>
+</div></div>
+<div class="viewcode-block" id="Client"><a class="viewcode-back" href="../index.html#memcache.Client">[docs]</a><span class="k">class</span> <span class="nc">Client</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Simple memcache client that supports timeout and a few transparent retry scenarios&#39;&#39;&#39;</span>
+
+<div class="viewcode-block" id="Client.__init__"><a class="viewcode-back" href="../index.html#memcache.Client.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">connect_timeout</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        If connect_timeout is None, timeout will be used instead</span>
+<span class="sd">        (for connect and everything else).</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_addr</span> <span class="o">=</span> <span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span> <span class="o">=</span> <span class="n">timeout</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_connect_timeout</span> <span class="o">=</span> <span class="n">connect_timeout</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_socket</span> <span class="o">=</span> <span class="bp">None</span>
+</div>
+<div class="viewcode-block" id="Client.__del__"><a class="viewcode-back" href="../index.html#memcache.Client.__del__">[docs]</a>    <span class="k">def</span> <span class="nf">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</div>
+    <span class="k">def</span> <span class="nf">_get_addr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_addr</span>
+
+    <span class="n">address</span> <span class="o">=</span> <span class="nb">property</span><span class="p">(</span><span class="n">_get_addr</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_get_timeout</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span>
+
+    <span class="k">def</span> <span class="nf">_set_timeout</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">timeout</span><span class="p">):</span>
+        <span class="c"># presumably this should fail rarely</span>
+        <span class="c"># set locally before on socket</span>
+        <span class="c"># b/c if socket fails, it will probably be closed/reopened</span>
+        <span class="c"># and will want to use last intended value</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span> <span class="o">=</span> <span class="n">timeout</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_socket</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_socket</span><span class="o">.</span><span class="n">settimeout</span><span class="p">(</span><span class="n">timeout</span><span class="p">)</span>
+
+    <span class="n">timeout</span> <span class="o">=</span> <span class="nb">property</span><span class="p">(</span><span class="n">_get_timeout</span><span class="p">,</span> <span class="n">_set_timeout</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_connect</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c"># buffer needed since we always ask for 4096 bytes at a time</span>
+        <span class="c"># thus, might read more than the current expected response</span>
+        <span class="c"># cleared on every reconnect since old bytes are part of old session and can&#39;t be reused</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span> <span class="o">=</span> <span class="s">&#39;&#39;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_socket</span> <span class="o">=</span> <span class="n">socket</span><span class="o">.</span><span class="n">socket</span><span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">AF_INET</span><span class="p">,</span> <span class="n">socket</span><span class="o">.</span><span class="n">SOCK_STREAM</span><span class="p">)</span>
+
+        <span class="n">connect_timeout</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connect_timeout</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connect_timeout</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_socket</span><span class="o">.</span><span class="n">settimeout</span><span class="p">(</span><span class="n">connect_timeout</span><span class="p">)</span> <span class="c"># passing None means blocking</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_socket</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_addr</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_socket</span><span class="o">.</span><span class="n">settimeout</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span><span class="p">)</span>
+        <span class="k">except</span> <span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">error</span><span class="p">,</span> <span class="n">socket</span><span class="o">.</span><span class="n">timeout</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_socket</span> <span class="o">=</span> <span class="bp">None</span> <span class="c"># don&#39;t want to hang on to bad socket</span>
+            <span class="k">raise</span>
+
+    <span class="k">def</span> <span class="nf">_read</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Return the next length bytes from server</span>
+<span class="sd">        Or, when length is None,</span>
+<span class="sd">        Read a response delimited by \r\n and return it (including \r\n)</span>
+<span class="sd">        (Use latter only when \r\n is unambiguous -- aka for control responses, not data)</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="k">while</span> <span class="n">result</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">length</span><span class="p">:</span> <span class="c"># length = 0 is ambiguous, so don&#39;t use</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">length</span><span class="p">:</span>
+                    <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="p">[:</span><span class="n">length</span><span class="p">]</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="p">[</span><span class="n">length</span><span class="p">:]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">delim_index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s">&#39;</span><span class="se">\r\n</span><span class="s">&#39;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">delim_index</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+                    <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="p">[:</span><span class="n">delim_index</span><span class="o">+</span><span class="mi">2</span><span class="p">]</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="p">[</span><span class="n">delim_index</span><span class="o">+</span><span class="mi">2</span><span class="p">:]</span>
+
+            <span class="k">if</span> <span class="n">result</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">tmp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_socket</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="mi">4096</span><span class="p">)</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">tmp</span><span class="p">:</span>
+                    <span class="c"># we handle common close/retry cases in _send_command</span>
+                    <span class="c"># however, this can happen if server suddenly goes away</span>
+                    <span class="c"># (e.g. restarting memcache under sufficient load)</span>
+                    <span class="k">raise</span> <span class="n">socket</span><span class="o">.</span><span class="n">error</span><span class="p">,</span> <span class="s">&#39;unexpected socket close on recv&#39;</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span> <span class="o">+=</span> <span class="n">tmp</span>
+        <span class="k">return</span> <span class="n">result</span>
+
+    <span class="k">def</span> <span class="nf">_send_command</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">command</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Send command to server and return initial response line</span>
+<span class="sd">        Will reopen socket if it got closed (either locally or by server)</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_socket</span><span class="p">:</span> <span class="c"># try to find out if the socket is still open</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_socket</span><span class="o">.</span><span class="n">settimeout</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_socket</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+                <span class="c"># if recv didn&#39;t raise, then the socket was closed or there is junk</span>
+                <span class="c"># in the read buffer, either way, close</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="k">except</span> <span class="n">socket</span><span class="o">.</span><span class="n">error</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">errno</span> <span class="o">==</span> <span class="n">errno</span><span class="o">.</span><span class="n">EAGAIN</span><span class="p">:</span> <span class="c"># this is expected if the socket is still open</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_socket</span><span class="o">.</span><span class="n">settimeout</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_socket</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_connect</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_socket</span><span class="o">.</span><span class="n">sendall</span><span class="p">(</span><span class="n">command</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read</span><span class="p">()</span>
+
+    <span class="c"># key supports ascii sans space and control chars</span>
+    <span class="c"># \x21 is !, right after space, and \x7e is -, right before DEL</span>
+    <span class="c"># also 1 &lt;= len &lt;= 250 as per the spec</span>
+    <span class="n">_valid_key_re</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s">&#39;^[</span><span class="se">\x21</span><span class="s">-</span><span class="se">\x7e</span><span class="s">]{1,250}$&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_validate_key</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span> <span class="c"># avoid bugs subtle and otherwise</span>
+            <span class="k">raise</span> <span class="n">ValidationException</span><span class="p">(</span><span class="s">&#39;key must be str&#39;</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_valid_key_re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">m</span><span class="p">:</span>
+            <span class="c"># in python re, $ matches either end of line or right before</span>
+            <span class="c"># \n at end of line. We can&#39;t allow latter case, so</span>
+            <span class="c"># making sure length matches is simplest way to detect</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">key</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="n">ValidationException</span><span class="p">(</span><span class="s">&#39;trailing newline&#39;</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ValidationException</span><span class="p">(</span><span class="s">&#39;invalid key&#39;</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">key</span>
+
+<div class="viewcode-block" id="Client.close"><a class="viewcode-back" href="../index.html#memcache.Client.close">[docs]</a>    <span class="k">def</span> <span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_socket</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_socket</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_socket</span> <span class="o">=</span> <span class="bp">None</span>
+</div>
+<div class="viewcode-block" id="Client.delete"><a class="viewcode-back" href="../index.html#memcache.Client.delete">[docs]</a>    <span class="k">def</span> <span class="nf">delete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="c"># req  - delete &lt;key&gt; [noreply]\r\n</span>
+        <span class="c"># resp - DELETED\r\n</span>
+        <span class="c">#        or</span>
+        <span class="c">#        NOT_FOUND\r\n</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validate_key</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+        <span class="n">command</span> <span class="o">=</span> <span class="s">&#39;delete </span><span class="si">%s</span><span class="se">\r\n</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">key</span>
+        <span class="n">resp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_send_command</span><span class="p">(</span><span class="n">command</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">resp</span> <span class="o">!=</span> <span class="s">&#39;DELETED</span><span class="se">\r\n</span><span class="s">&#39;</span> <span class="ow">and</span> <span class="n">resp</span> <span class="o">!=</span> <span class="s">&#39;NOT_FOUND</span><span class="se">\r\n</span><span class="s">&#39;</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ClientException</span><span class="p">(</span><span class="s">&#39;delete failed&#39;</span><span class="p">,</span> <span class="n">resp</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="Client.get"><a class="viewcode-back" href="../index.html#memcache.Client.get">[docs]</a>    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">multi_get</span><span class="p">([</span><span class="n">key</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
+</div>
+<div class="viewcode-block" id="Client.multi_get"><a class="viewcode-back" href="../index.html#memcache.Client.multi_get">[docs]</a>    <span class="k">def</span> <span class="nf">multi_get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">keys</span><span class="p">):</span>
+        <span class="c"># req  - get &lt;key&gt; [&lt;key&gt; ...]\r\n</span>
+        <span class="c"># resp - VALUE &lt;key&gt; &lt;flags&gt; &lt;bytes&gt; [&lt;cas unique&gt;]\r\n</span>
+        <span class="c">#        &lt;data block&gt;\r\n (if exists)</span>
+        <span class="c">#        [...]</span>
+        <span class="c">#        END\r\n</span>
+        <span class="n">keys</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_validate_key</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">keys</span><span class="p">))</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">ClientException</span><span class="p">(</span><span class="s">&#39;duplicate keys passed to multi_get&#39;</span><span class="p">)</span>
+        <span class="n">command</span> <span class="o">=</span> <span class="s">&#39;get </span><span class="si">%s</span><span class="se">\r\n</span><span class="s">&#39;</span> <span class="o">%</span> <span class="s">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span>
+        <span class="n">received</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">resp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_send_command</span><span class="p">(</span><span class="n">command</span><span class="p">)</span>
+        <span class="n">error</span> <span class="o">=</span> <span class="bp">None</span>
+
+        <span class="k">while</span> <span class="n">resp</span> <span class="o">!=</span> <span class="s">&#39;END</span><span class="se">\r\n</span><span class="s">&#39;</span><span class="p">:</span>
+            <span class="n">terms</span> <span class="o">=</span> <span class="n">resp</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">terms</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span> <span class="ow">and</span> <span class="n">terms</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s">&#39;VALUE&#39;</span><span class="p">:</span> <span class="c"># exists</span>
+                <span class="n">key</span> <span class="o">=</span> <span class="n">terms</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">flags</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">terms</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+                <span class="n">length</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">terms</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
+                <span class="k">if</span> <span class="n">flags</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">error</span> <span class="o">=</span> <span class="n">ClientException</span><span class="p">(</span><span class="s">&#39;received non zero flags&#39;</span><span class="p">)</span>
+                <span class="n">val</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read</span><span class="p">(</span><span class="n">length</span><span class="o">+</span><span class="mi">2</span><span class="p">)[:</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">received</span><span class="p">:</span>
+                    <span class="n">error</span> <span class="o">=</span> <span class="n">ClientException</span><span class="p">(</span><span class="s">&#39;duplicate results from server&#39;</span><span class="p">)</span>
+                <span class="n">received</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">ClientException</span><span class="p">(</span><span class="s">&#39;get failed&#39;</span><span class="p">,</span> <span class="n">resp</span><span class="p">)</span>
+            <span class="n">resp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">error</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="c"># this can happen if a memcached instance contains items set by a previous client</span>
+            <span class="c"># leads to subtle bugs, so fail fast</span>
+            <span class="k">raise</span> <span class="n">error</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">received</span><span class="p">)</span> <span class="o">&gt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">ClientException</span><span class="p">(</span><span class="s">&#39;received too many responses&#39;</span><span class="p">)</span>
+        <span class="c"># memcache client is used by other servers besides memcached.</span>
+        <span class="c"># In the case of kestrel, responses coming back to not necessarily</span>
+        <span class="c"># match the requests going out. Thus we just ignore the key name</span>
+        <span class="c"># if there is only one key and return what we received.</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">received</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">response</span> <span class="o">=</span> <span class="n">received</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">response</span> <span class="o">=</span> <span class="p">[</span><span class="n">received</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">response</span>
+</div>
+<div class="viewcode-block" id="Client.set"><a class="viewcode-back" href="../index.html#memcache.Client.set">[docs]</a>    <span class="k">def</span> <span class="nf">set</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span><span class="p">,</span> <span class="n">exptime</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="c"># req  - set &lt;key&gt; &lt;flags&gt; &lt;exptime&gt; &lt;bytes&gt; [noreply]\r\n</span>
+        <span class="c">#        &lt;data block&gt;\r\n</span>
+        <span class="c"># resp - STORED\r\n (or others)</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validate_key</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+        <span class="c"># the problem with supporting types is it oftens leads to uneven and confused usage</span>
+        <span class="c"># some code sites use the type support, others do manual casting to/from str</span>
+        <span class="c"># worse yet, some sites don&#39;t even know what value they are putting in and mis-cast on get</span>
+        <span class="c"># by uniformly requiring str, the end-use code is much more uniform and legible</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">ValidationException</span><span class="p">(</span><span class="s">&#39;value must be str&#39;</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>
+
+        <span class="c"># typically, if val is &gt; 1024**2 bytes server returns:</span>
+        <span class="c">#   SERVER_ERROR object too large for cache\r\n</span>
+        <span class="c"># however custom-compiled memcached can have different limit</span>
+        <span class="c"># so, we&#39;ll let the server decide what&#39;s too much</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exptime</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">ValidationException</span><span class="p">(</span><span class="s">&#39;exptime not int&#39;</span><span class="p">,</span> <span class="n">exptime</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">exptime</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ValidationException</span><span class="p">(</span><span class="s">&#39;exptime negative&#39;</span><span class="p">,</span> <span class="n">exptime</span><span class="p">)</span>
+
+        <span class="n">command</span> <span class="o">=</span> <span class="s">&#39;set </span><span class="si">%s</span><span class="s"> 0 </span><span class="si">%d</span><span class="s"> </span><span class="si">%d</span><span class="se">\r\n</span><span class="si">%s</span><span class="se">\r\n</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">exptime</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">val</span><span class="p">),</span> <span class="n">val</span><span class="p">)</span>
+        <span class="n">resp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_send_command</span><span class="p">(</span><span class="n">command</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">resp</span> <span class="o">!=</span> <span class="s">&#39;STORED</span><span class="se">\r\n</span><span class="s">&#39;</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ClientException</span><span class="p">(</span><span class="s">&#39;set failed&#39;</span><span class="p">,</span> <span class="n">resp</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="Client.stats"><a class="viewcode-back" href="../index.html#memcache.Client.stats">[docs]</a>    <span class="k">def</span> <span class="nf">stats</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">additional_args</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        additional_args passed verbatim to the stats cmd</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="c"># req  - stats [additional args]\r\n</span>
+        <span class="c"># resp - STAT &lt;name&gt; &lt;value&gt;\r\n (one per result)</span>
+        <span class="c">#        END\r\n</span>
+        <span class="k">if</span> <span class="n">additional_args</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">command</span> <span class="o">=</span> <span class="s">&#39;stats </span><span class="si">%s</span><span class="se">\r\n</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">additional_args</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">command</span> <span class="o">=</span> <span class="s">&#39;stats</span><span class="se">\r\n</span><span class="s">&#39;</span>
+
+        <span class="n">resp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_send_command</span><span class="p">(</span><span class="n">command</span><span class="p">)</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">while</span> <span class="n">resp</span> <span class="o">!=</span> <span class="s">&#39;END</span><span class="se">\r\n</span><span class="s">&#39;</span><span class="p">:</span>
+            <span class="n">terms</span> <span class="o">=</span> <span class="n">resp</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">terms</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span> <span class="ow">and</span> <span class="n">terms</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s">&#39;STAT&#39;</span><span class="p">:</span>
+                <span class="n">result</span><span class="p">[</span><span class="n">terms</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span> <span class="o">=</span> <span class="n">terms</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">ClientException</span><span class="p">(</span><span class="s">&#39;stats failed&#39;</span><span class="p">,</span> <span class="n">resp</span><span class="p">)</span>
+            <span class="n">resp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">result</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../index.html">memcache_client 1.0 documentation</a> &raquo;</li>
+          <li><a href="index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2012, Mixpanel.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>
