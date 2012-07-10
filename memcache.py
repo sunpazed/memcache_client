@@ -12,6 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+'''
+a minimal, pure python client for memcached, kestrel, etc.
+
+Usage example::
+
+    import memcache
+    mc = memcache.Client("127.0.0.1", 11211, timeout=1, connect_timeout=5)
+    mc.set("some_key", "Some value")
+    value = mc.get("some_key")
+    mc.delete("another_key")
+'''
+
 import errno
 import re
 import socket
@@ -29,12 +41,11 @@ class ValidationException(ClientException):
         super(ValidationException, self).__init__(msg, item)
 
 class Client(object):
-    '''Simple memcache client that supports timeout and a few transparent retry scenarios'''
 
     def __init__(self, host, port, timeout=None, connect_timeout=None):
         '''
-        If connect_timeout is None, timeout will be used instead
-        (for connect and everything else).
+        If ``connect_timeout`` is None, ``timeout`` will be used instead
+        (for connect and everything else)
         '''
         self._addr = (host, port)
         self._timeout = timeout
@@ -48,6 +59,7 @@ class Client(object):
         return self._addr
 
     address = property(_get_addr)
+    ''' A read-only (str, int) tuple representing the host operations are performed on '''
 
     def _get_timeout(self):
         return self._timeout
@@ -62,6 +74,8 @@ class Client(object):
             self._socket.settimeout(timeout)
 
     timeout = property(_get_timeout, _set_timeout)
+    ''' The timeout for reads and sends on the underlying socket
+    (``connect_timeout`` cannot be changed once set) '''
 
     def _connect(self):
         # buffer needed since we always ask for 4096 bytes at a time
@@ -154,11 +168,18 @@ class Client(object):
         return key
 
     def close(self):
+        '''
+        Closes the socket if its open
+
+        | Sockets are automatically closed when the ``Client`` object is garbage collected
+        | Sockets are opened the first time a command is run (such as ``get`` or ``set``)
+        '''
         if self._socket:
             self._socket.close()
             self._socket = None
 
     def delete(self, key):
+        ''' Deletes a key/value pair from the server '''
         # req  - delete <key> [noreply]\r\n
         # resp - DELETED\r\n
         #        or
@@ -171,9 +192,15 @@ class Client(object):
             raise ClientException('delete failed', resp)
 
     def get(self, key):
+        '''
+        Gets a single value from the server; returns None if there is no value
+        '''
         return self.multi_get([key])[0]
 
     def multi_get(self, keys):
+        '''
+        Takes a list of keys and returns a list of values
+        '''
         # req  - get <key> [<key> ...]\r\n
         # resp - VALUE <key> <flags> <bytes> [<cas unique>]\r\n
         #        <data block>\r\n (if exists)
@@ -221,6 +248,9 @@ class Client(object):
         return response
 
     def set(self, key, val, exptime=0):
+        '''
+        Sets a key to a value on the server with an optional exptime (0 means don't auto-expire)
+        '''
         # req  - set <key> <flags> <exptime> <bytes> [noreply]\r\n
         #        <data block>\r\n
         # resp - STORED\r\n (or others)
@@ -250,7 +280,12 @@ class Client(object):
 
     def stats(self, additional_args=None):
         '''
-        additional_args passed verbatim to the stats cmd
+        Runs a stats command on the server.
+
+
+        ``additional_args`` are passed verbatim to the server.
+        See `the memcached wiki <http://code.google.com/p/memcached/wiki/NewCommands#Statistics>`_ for details
+        or `the spec <https://github.com/memcached/memcached/blob/master/doc/protocol.txt>`_ for even more details
         '''
         # req  - stats [additional args]\r\n
         # resp - STAT <name> <value>\r\n (one per result)
