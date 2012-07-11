@@ -29,6 +29,12 @@ import re
 import socket
 
 class ClientException(Exception):
+    '''
+    Raised when the server does something we don't expect
+
+    | This does not include `socket errors <http://docs.python.org/library/socket.html#socket.error>`_
+    | Note that ``ValidationException`` subclasses this so, technically, this is raised on any error
+    '''
 
     def __init__(self, msg, item=None):
         if item is not None:
@@ -36,6 +42,9 @@ class ClientException(Exception):
         super(ClientException, self).__init__(msg)
 
 class ValidationException(ClientException):
+    '''
+    Raised when an invalid parameter is passed to a ``Client`` function
+    '''
 
     def __init__(self, msg, item):
         super(ValidationException, self).__init__(msg, item)
@@ -70,12 +79,17 @@ class Client(object):
         # b/c if socket fails, it will probably be closed/reopened
         # and will want to use last intended value
         self._timeout = timeout
+        print 'socket', self._socket
         if self._socket:
             self._socket.settimeout(timeout)
 
     timeout = property(_get_timeout, _set_timeout)
-    ''' The timeout for reads and sends on the underlying socket
-    (``connect_timeout`` cannot be changed once set) '''
+    '''
+    A float representing the timeout in seconds for reads and sends on the underlying socket
+    (``connect_timeout`` cannot be changed once init)
+
+    Setting a timeout can raise a ``TypeError`` (non-float)  or a ``ValueError`` (negative)
+    '''
 
     def _connect(self):
         # buffer needed since we always ask for 4096 bytes at a time
@@ -173,13 +187,18 @@ class Client(object):
 
         | Sockets are automatically closed when the ``Client`` object is garbage collected
         | Sockets are opened the first time a command is run (such as ``get`` or ``set``)
+        | Raises socket errors
         '''
         if self._socket:
             self._socket.close()
             self._socket = None
 
     def delete(self, key):
-        ''' Deletes a key/value pair from the server '''
+        '''
+        Deletes a key/value pair from the server
+
+        Raises ``ClientException`` and socket errors
+        '''
         # req  - delete <key> [noreply]\r\n
         # resp - DELETED\r\n
         #        or
@@ -194,12 +213,16 @@ class Client(object):
     def get(self, key):
         '''
         Gets a single value from the server; returns None if there is no value
+
+        Raises ``ValidationException``, ``ClientException``, and socket errors
         '''
         return self.multi_get([key])[0]
 
     def multi_get(self, keys):
         '''
         Takes a list of keys and returns a list of values
+
+        Raises ``ValidationException``, ``ClientException``, and socket errors
         '''
         # req  - get <key> [<key> ...]\r\n
         # resp - VALUE <key> <flags> <bytes> [<cas unique>]\r\n
@@ -250,6 +273,8 @@ class Client(object):
     def set(self, key, val, exptime=0):
         '''
         Sets a key to a value on the server with an optional exptime (0 means don't auto-expire)
+
+        Raises ``ValidationException``, ``ClientException``, and socket errors
         '''
         # req  - set <key> <flags> <exptime> <bytes> [noreply]\r\n
         #        <data block>\r\n
@@ -282,10 +307,11 @@ class Client(object):
         '''
         Runs a stats command on the server.
 
-
         ``additional_args`` are passed verbatim to the server.
         See `the memcached wiki <http://code.google.com/p/memcached/wiki/NewCommands#Statistics>`_ for details
         or `the spec <https://github.com/memcached/memcached/blob/master/doc/protocol.txt>`_ for even more details
+
+        Raises ``ClientException`` and socket errors
         '''
         # req  - stats [additional args]\r\n
         # resp - STAT <name> <value>\r\n (one per result)
