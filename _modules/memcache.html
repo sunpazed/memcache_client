@@ -63,42 +63,54 @@
 <span class="c"># See the License for the specific language governing permissions and</span>
 <span class="c"># limitations under the License.</span>
 
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">a minimal, pure python client for memcached, kestrel, etc.</span>
+
+<span class="sd">Usage example::</span>
+
+<span class="sd">    import memcache</span>
+<span class="sd">    mc = memcache.Client(&quot;127.0.0.1&quot;, 11211, timeout=1, connect_timeout=5)</span>
+<span class="sd">    mc.set(&quot;some_key&quot;, &quot;Some value&quot;)</span>
+<span class="sd">    value = mc.get(&quot;some_key&quot;)</span>
+<span class="sd">    mc.delete(&quot;another_key&quot;)</span>
+<span class="sd">&#39;&#39;&#39;</span>
+
 <span class="kn">import</span> <span class="nn">errno</span>
 <span class="kn">import</span> <span class="nn">re</span>
 <span class="kn">import</span> <span class="nn">socket</span>
 
 <div class="viewcode-block" id="ClientException"><a class="viewcode-back" href="../index.html#memcache.ClientException">[docs]</a><span class="k">class</span> <span class="nc">ClientException</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
 
-<div class="viewcode-block" id="ClientException.__init__"><a class="viewcode-back" href="../index.html#memcache.ClientException.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">,</span> <span class="n">item</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">,</span> <span class="n">item</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">item</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
             <span class="n">msg</span> <span class="o">=</span> <span class="s">&#39;</span><span class="si">%s</span><span class="s">: </span><span class="si">%r</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">item</span><span class="p">)</span> <span class="c"># use repr() to better see special chars</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">ClientException</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
-</div></div>
+</div>
 <div class="viewcode-block" id="ValidationException"><a class="viewcode-back" href="../index.html#memcache.ValidationException">[docs]</a><span class="k">class</span> <span class="nc">ValidationException</span><span class="p">(</span><span class="n">ClientException</span><span class="p">):</span>
 
-<div class="viewcode-block" id="ValidationException.__init__"><a class="viewcode-back" href="../index.html#memcache.ValidationException.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">ValidationException</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">item</span><span class="p">)</span>
-</div></div>
+</div>
 <div class="viewcode-block" id="Client"><a class="viewcode-back" href="../index.html#memcache.Client">[docs]</a><span class="k">class</span> <span class="nc">Client</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sd">&#39;&#39;&#39;Simple memcache client that supports timeout and a few transparent retry scenarios&#39;&#39;&#39;</span>
 
-<div class="viewcode-block" id="Client.__init__"><a class="viewcode-back" href="../index.html#memcache.Client.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">connect_timeout</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">connect_timeout</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
         <span class="sd">&#39;&#39;&#39;</span>
-<span class="sd">        If connect_timeout is None, timeout will be used instead</span>
-<span class="sd">        (for connect and everything else).</span>
+<span class="sd">        If ``connect_timeout`` is None, ``timeout`` will be used instead</span>
+<span class="sd">        (for connect and everything else)</span>
 <span class="sd">        &#39;&#39;&#39;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_addr</span> <span class="o">=</span> <span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span> <span class="o">=</span> <span class="n">timeout</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_connect_timeout</span> <span class="o">=</span> <span class="n">connect_timeout</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_socket</span> <span class="o">=</span> <span class="bp">None</span>
-</div>
-<div class="viewcode-block" id="Client.__del__"><a class="viewcode-back" href="../index.html#memcache.Client.__del__">[docs]</a>    <span class="k">def</span> <span class="nf">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-</div>
+
     <span class="k">def</span> <span class="nf">_get_addr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_addr</span>
 
     <span class="n">address</span> <span class="o">=</span> <span class="nb">property</span><span class="p">(</span><span class="n">_get_addr</span><span class="p">)</span>
+    <span class="sd">&#39;&#39;&#39; A read-only (str, int) tuple representing the host operations are performed on &#39;&#39;&#39;</span>
 
     <span class="k">def</span> <span class="nf">_get_timeout</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span>
@@ -113,6 +125,8 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_socket</span><span class="o">.</span><span class="n">settimeout</span><span class="p">(</span><span class="n">timeout</span><span class="p">)</span>
 
     <span class="n">timeout</span> <span class="o">=</span> <span class="nb">property</span><span class="p">(</span><span class="n">_get_timeout</span><span class="p">,</span> <span class="n">_set_timeout</span><span class="p">)</span>
+    <span class="sd">&#39;&#39;&#39; The timeout for reads and sends on the underlying socket</span>
+<span class="sd">    (``connect_timeout`` cannot be changed once set) &#39;&#39;&#39;</span>
 
     <span class="k">def</span> <span class="nf">_connect</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="c"># buffer needed since we always ask for 4096 bytes at a time</span>
@@ -205,11 +219,18 @@
         <span class="k">return</span> <span class="n">key</span>
 
 <div class="viewcode-block" id="Client.close"><a class="viewcode-back" href="../index.html#memcache.Client.close">[docs]</a>    <span class="k">def</span> <span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Closes the socket if its open</span>
+
+<span class="sd">        | Sockets are automatically closed when the ``Client`` object is garbage collected</span>
+<span class="sd">        | Sockets are opened the first time a command is run (such as ``get`` or ``set``)</span>
+<span class="sd">        &#39;&#39;&#39;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_socket</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_socket</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_socket</span> <span class="o">=</span> <span class="bp">None</span>
 </div>
 <div class="viewcode-block" id="Client.delete"><a class="viewcode-back" href="../index.html#memcache.Client.delete">[docs]</a>    <span class="k">def</span> <span class="nf">delete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39; Deletes a key/value pair from the server &#39;&#39;&#39;</span>
         <span class="c"># req  - delete &lt;key&gt; [noreply]\r\n</span>
         <span class="c"># resp - DELETED\r\n</span>
         <span class="c">#        or</span>
@@ -222,9 +243,15 @@
             <span class="k">raise</span> <span class="n">ClientException</span><span class="p">(</span><span class="s">&#39;delete failed&#39;</span><span class="p">,</span> <span class="n">resp</span><span class="p">)</span>
 </div>
 <div class="viewcode-block" id="Client.get"><a class="viewcode-back" href="../index.html#memcache.Client.get">[docs]</a>    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Gets a single value from the server; returns None if there is no value</span>
+<span class="sd">        &#39;&#39;&#39;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">multi_get</span><span class="p">([</span><span class="n">key</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
 </div>
 <div class="viewcode-block" id="Client.multi_get"><a class="viewcode-back" href="../index.html#memcache.Client.multi_get">[docs]</a>    <span class="k">def</span> <span class="nf">multi_get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">keys</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Takes a list of keys and returns a list of values</span>
+<span class="sd">        &#39;&#39;&#39;</span>
         <span class="c"># req  - get &lt;key&gt; [&lt;key&gt; ...]\r\n</span>
         <span class="c"># resp - VALUE &lt;key&gt; &lt;flags&gt; &lt;bytes&gt; [&lt;cas unique&gt;]\r\n</span>
         <span class="c">#        &lt;data block&gt;\r\n (if exists)</span>
@@ -272,6 +299,9 @@
         <span class="k">return</span> <span class="n">response</span>
 </div>
 <div class="viewcode-block" id="Client.set"><a class="viewcode-back" href="../index.html#memcache.Client.set">[docs]</a>    <span class="k">def</span> <span class="nf">set</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span><span class="p">,</span> <span class="n">exptime</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Sets a key to a value on the server with an optional exptime (0 means don&#39;t auto-expire)</span>
+<span class="sd">        &#39;&#39;&#39;</span>
         <span class="c"># req  - set &lt;key&gt; &lt;flags&gt; &lt;exptime&gt; &lt;bytes&gt; [noreply]\r\n</span>
         <span class="c">#        &lt;data block&gt;\r\n</span>
         <span class="c"># resp - STORED\r\n (or others)</span>
@@ -301,7 +331,12 @@
 </div>
 <div class="viewcode-block" id="Client.stats"><a class="viewcode-back" href="../index.html#memcache.Client.stats">[docs]</a>    <span class="k">def</span> <span class="nf">stats</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">additional_args</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
         <span class="sd">&#39;&#39;&#39;</span>
-<span class="sd">        additional_args passed verbatim to the stats cmd</span>
+<span class="sd">        Runs a stats command on the server.</span>
+
+
+<span class="sd">        ``additional_args`` are passed verbatim to the server.</span>
+<span class="sd">        See `the memcached wiki &lt;http://code.google.com/p/memcached/wiki/NewCommands#Statistics&gt;`_ for details</span>
+<span class="sd">        or `the spec &lt;https://github.com/memcached/memcached/blob/master/doc/protocol.txt&gt;`_ for even more details</span>
 <span class="sd">        &#39;&#39;&#39;</span>
         <span class="c"># req  - stats [additional args]\r\n</span>
         <span class="c"># resp - STAT &lt;name&gt; &lt;value&gt;\r\n (one per result)</span>

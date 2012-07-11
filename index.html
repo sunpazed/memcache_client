@@ -65,17 +65,26 @@
 <dl class="exception">
 <dt id="memcache.ClientException">
 <em class="property">exception </em><tt class="descclassname">memcache.</tt><tt class="descname">ClientException</tt><big>(</big><em>msg</em>, <em>item=None</em><big>)</big><a class="reference internal" href="_modules/memcache.html#ClientException"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#memcache.ClientException" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Bases: <tt class="xref py py-class docutils literal"><span class="pre">exceptions.Exception</span></tt></p>
+<p>Raised when the server does something we don&#8217;t expect</p>
+<div class="line-block">
+<div class="line">This does not include <a class="reference external" href="http://docs.python.org/library/socket.html#socket.error">socket errors</a></div>
+<div class="line">Note that <tt class="docutils literal"><span class="pre">ValidationException</span></tt> subclasses this so, technically, this is raised on any error</div>
+</div>
+</dd></dl>
 
 <dl class="exception">
 <dt id="memcache.ValidationException">
 <em class="property">exception </em><tt class="descclassname">memcache.</tt><tt class="descname">ValidationException</tt><big>(</big><em>msg</em>, <em>item</em><big>)</big><a class="reference internal" href="_modules/memcache.html#ValidationException"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#memcache.ValidationException" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Bases: <a class="reference internal" href="#memcache.ClientException" title="memcache.ClientException"><tt class="xref py py-class docutils literal"><span class="pre">memcache.ClientException</span></tt></a></p>
+<p>Raised when an invalid parameter is passed to a <tt class="docutils literal"><span class="pre">Client</span></tt> function</p>
+</dd></dl>
 
 <dl class="class">
 <dt id="memcache.Client">
 <em class="property">class </em><tt class="descclassname">memcache.</tt><tt class="descname">Client</tt><big>(</big><em>host</em>, <em>port</em>, <em>timeout=None</em>, <em>connect_timeout=None</em><big>)</big><a class="reference internal" href="_modules/memcache.html#Client"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#memcache.Client" title="Permalink to this definition">¶</a></dt>
-<dd><p>If <tt class="docutils literal"><span class="pre">connect_timeout</span></tt> is None, <tt class="docutils literal"><span class="pre">timeout</span></tt> will be used instead
+<dd><p>Bases: <tt class="xref py py-class docutils literal"><span class="pre">object</span></tt></p>
+<p>If <tt class="docutils literal"><span class="pre">connect_timeout</span></tt> is None, <tt class="docutils literal"><span class="pre">timeout</span></tt> will be used instead
 (for connect and everything else)</p>
 <dl class="attribute">
 <dt id="memcache.Client.address">
@@ -86,8 +95,9 @@
 <dl class="attribute">
 <dt id="memcache.Client.timeout">
 <tt class="descname">timeout</tt><a class="headerlink" href="#memcache.Client.timeout" title="Permalink to this definition">¶</a></dt>
-<dd><p>The timeout for reads and sends on the underlying socket
-(<tt class="docutils literal"><span class="pre">connect_timeout</span></tt> cannot be changed once set)</p>
+<dd><p>A float representing the timeout in seconds for reads and sends on the underlying socket
+(<tt class="docutils literal"><span class="pre">connect_timeout</span></tt> cannot be changed once init)</p>
+<p>Setting a timeout can raise a <tt class="docutils literal"><span class="pre">TypeError</span></tt> (non-float)  or a <tt class="docutils literal"><span class="pre">ValueError</span></tt> (negative)</p>
 </dd></dl>
 
 <dl class="method">
@@ -97,6 +107,7 @@
 <div class="line-block">
 <div class="line">Sockets are automatically closed when the <tt class="docutils literal"><span class="pre">Client</span></tt> object is garbage collected</div>
 <div class="line">Sockets are opened the first time a command is run (such as <tt class="docutils literal"><span class="pre">get</span></tt> or <tt class="docutils literal"><span class="pre">set</span></tt>)</div>
+<div class="line">Raises socket errors</div>
 </div>
 </dd></dl>
 
@@ -104,24 +115,28 @@
 <dt id="memcache.Client.delete">
 <tt class="descname">delete</tt><big>(</big><em>key</em><big>)</big><a class="reference internal" href="_modules/memcache.html#Client.delete"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#memcache.Client.delete" title="Permalink to this definition">¶</a></dt>
 <dd><p>Deletes a key/value pair from the server</p>
+<p>Raises <tt class="docutils literal"><span class="pre">ClientException</span></tt> and socket errors</p>
 </dd></dl>
 
 <dl class="method">
 <dt id="memcache.Client.get">
 <tt class="descname">get</tt><big>(</big><em>key</em><big>)</big><a class="reference internal" href="_modules/memcache.html#Client.get"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#memcache.Client.get" title="Permalink to this definition">¶</a></dt>
 <dd><p>Gets a single value from the server; returns None if there is no value</p>
+<p>Raises <tt class="docutils literal"><span class="pre">ValidationException</span></tt>, <tt class="docutils literal"><span class="pre">ClientException</span></tt>, and socket errors</p>
 </dd></dl>
 
 <dl class="method">
 <dt id="memcache.Client.multi_get">
 <tt class="descname">multi_get</tt><big>(</big><em>keys</em><big>)</big><a class="reference internal" href="_modules/memcache.html#Client.multi_get"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#memcache.Client.multi_get" title="Permalink to this definition">¶</a></dt>
 <dd><p>Takes a list of keys and returns a list of values</p>
+<p>Raises <tt class="docutils literal"><span class="pre">ValidationException</span></tt>, <tt class="docutils literal"><span class="pre">ClientException</span></tt>, and socket errors</p>
 </dd></dl>
 
 <dl class="method">
 <dt id="memcache.Client.set">
 <tt class="descname">set</tt><big>(</big><em>key</em>, <em>val</em>, <em>exptime=0</em><big>)</big><a class="reference internal" href="_modules/memcache.html#Client.set"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#memcache.Client.set" title="Permalink to this definition">¶</a></dt>
 <dd><p>Sets a key to a value on the server with an optional exptime (0 means don&#8217;t auto-expire)</p>
+<p>Raises <tt class="docutils literal"><span class="pre">ValidationException</span></tt>, <tt class="docutils literal"><span class="pre">ClientException</span></tt>, and socket errors</p>
 </dd></dl>
 
 <dl class="method">
@@ -131,6 +146,7 @@
 <p><tt class="docutils literal"><span class="pre">additional_args</span></tt> are passed verbatim to the server.
 See <a class="reference external" href="http://code.google.com/p/memcached/wiki/NewCommands#Statistics">the memcached wiki</a> for details
 or <a class="reference external" href="https://github.com/memcached/memcached/blob/master/doc/protocol.txt">the spec</a> for even more details</p>
+<p>Raises <tt class="docutils literal"><span class="pre">ClientException</span></tt> and socket errors</p>
 </dd></dl>
 
 </dd></dl>
