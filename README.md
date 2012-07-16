@@ -6,7 +6,7 @@ The main features are better timeout handling and enforcement of bytestring keys
  * Minimal API
    * Only supports set, get, delete, and stats
    * Client connects to single host -- no sharding over slabs
-   * INET sockets only -- no UNIX sockets
+   * TCP sockets only -- no UDP or UNIX sockets
    * bytestring keys/values only -- no pickling/casting
  * Additional functionality
    * Timeouts via socket.settimeout() for fail-fast behavior
