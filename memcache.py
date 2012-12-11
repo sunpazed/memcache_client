@@ -79,7 +79,6 @@ class Client(object):
         # b/c if socket fails, it will probably be closed/reopened
         # and will want to use last intended value
         self._timeout = timeout
-        print 'socket', self._socket
         if self._socket:
             self._socket.settimeout(timeout)
 
@@ -128,7 +127,12 @@ class Client(object):
                     self._buffer = self._buffer[delim_index+2:]
 
             if result is None:
-                tmp = self._socket.recv(4096)
+                try:
+                    tmp = self._socket.recv(4096)
+                except (socket.error, socket.timeout) as e:
+                    self.close()
+                    raise e
+
                 if not tmp:
                     # we handle common close/retry cases in _send_command
                     # however, this can happen if server suddenly goes away
@@ -325,7 +329,9 @@ class Client(object):
         result = {}
         while resp != 'END\r\n':
             terms = resp.split()
-            if len(terms) == 3 and terms[0] == 'STAT':
+            if len(terms) == 2 and terms[0] == 'STAT':
+                result[terms[1]] = None
+            elif len(terms) == 3 and terms[0] == 'STAT':
                 result[terms[1]] = terms[2]
             else:
                 raise ClientException('stats failed', resp)
