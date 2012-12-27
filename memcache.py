@@ -333,7 +333,30 @@ class Client(object):
                 result[terms[1]] = None
             elif len(terms) == 3 and terms[0] == 'STAT':
                 result[terms[1]] = terms[2]
+            elif len(terms) == 6 and terms[0] == 'ITEM':
+                result[terms[1]] = terms[4]
             else:
-                raise ClientException('stats failed', resp)
+            	raise ClientException('stats failed', resp)
             resp = self._read()
         return result
+
+    def getkeys(self, prefix=''): 
+        '''
+        Retrieves keys by prefix on the server.
+
+        ``prefix`` is used to filter out keys by prefix. Blank fetches all keys.
+        Note, only 1000 keys are returned with this implementation.
+        See `Memcached: list all key http://www.darkcoding.net/software/memcached-list-all-keys/`_ to understand how this is implemented.
+        '''
+
+        results = {} 
+        get_items = self.stats('items')
+        for key in get_items:
+            if key.endswith("number"):
+                key_index = key.split(':')
+                dump_cache = 'cachedump %s 1000' % key_index[1]
+                items = self.stats(dump_cache)
+                filtered_items = dict((k, v) for k,v in items.iteritems() if k.startswith(prefix))
+                results = dict(results.items() + filtered_items.items())
+
+        return results
