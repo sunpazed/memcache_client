@@ -340,7 +340,7 @@ class Client(object):
             resp = self._read()
         return result
 
-    def getkeys(self, prefix=''): 
+    def getkeys(self, key_prefix=''): 
         '''
         Retrieves keys by prefix on the server.
 
@@ -356,7 +356,7 @@ class Client(object):
                 key_index = key.split(':')
                 dump_cache = 'cachedump %s 1000' % key_index[1]
                 items = self.stats(dump_cache)
-                filtered_items = dict((k, v) for k,v in items.iteritems() if k.startswith(prefix))
+                filtered_items = dict((k, v) for k,v in items.iteritems() if k.startswith(key_prefix))
                 results = dict(results.items() + filtered_items.items())
 
         return results
